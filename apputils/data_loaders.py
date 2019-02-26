@@ -26,7 +26,7 @@ import torchvision.datasets as datasets
 from torch.utils.data.sampler import Sampler
 import numpy as np
 
-DATASETS_NAMES = ['imagenet', 'cifar10']
+DATASETS_NAMES = ['imagenet', 'cifar10', 'cifar100']
 
 
 def load_data(dataset, data_dir, batch_size, workers, validation_split=0.1, deterministic=False,
@@ -34,8 +34,8 @@ def load_data(dataset, data_dir, batch_size, workers, validation_split=0.1, dete
     """Load a dataset.
 
     Args:
-        dataset: a string with the name of the dataset to load (cifar10/imagenet)
-        data_dir: the directory where the datset resides
+        dataset: a string with the name of the dataset to load (cifar10/imagenet/imagenet)
+        data_dir: the directory where the dataset resides
         batch_size: the batch size
         workers: the number of worker threads to use for loading the data
         validation_split: portion of training dataset to set aside for validation
@@ -47,7 +47,13 @@ def load_data(dataset, data_dir, batch_size, workers, validation_split=0.1, dete
     """
     if dataset not in DATASETS_NAMES:
         raise ValueError('load_data does not support dataset %s" % dataset')
-    datasets_fn = cifar10_get_datasets if dataset == 'cifar10' else imagenet_get_datasets
+    #datasets_fn = cifar10_get_datasets if dataset == 'cifar10' else imagenet_get_datasets
+	if dataset == 'cifar10':
+        datasets_fn = cifar10_get_datasets
+    elif dataset == 'cifar100':
+        datasets_fn = cifar100_get_datasets
+    else:
+        datasets_fn = imagenet_get_datasets
     return get_data_loaders(datasets_fn, data_dir, batch_size, workers, validation_split=validation_split,
                             deterministic=deterministic, effective_train_size=effective_train_size,
                             effective_valid_size=effective_valid_size, effective_test_size=effective_test_size)
@@ -91,7 +97,29 @@ def cifar10_get_datasets(data_dir):
 
     return train_dataset, test_dataset
 
+def cifar100_get_datasets(data_dir):
+    """Load the CIFAR100 dataset.
+	"""
+    train_transform = transforms.Compose([
+        transforms.RandomCrop(32, padding=4),
+        transforms.RandomHorizontalFlip(),
+        transforms.ToTensor(),
+        transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+    ])
 
+    train_dataset = datasets.CIFAR100(root=data_dir, train=True,
+                                     download=True, transform=train_transform)
+
+    test_transform = transforms.Compose([
+        transforms.ToTensor(),
+        transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+    ])
+
+    test_dataset = datasets.CIFAR100(root=data_dir, train=False,
+                                    download=True, transform=test_transform)
+
+    return train_dataset, test_dataset
+	
 def imagenet_get_datasets(data_dir):
     """
     Load the ImageNet dataset.
