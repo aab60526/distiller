@@ -142,9 +142,21 @@ def main():
             # Set default device in case the first one on the list != 0
             torch.cuda.set_device(args.gpus[0])
 
-    # Infer the dataset from the model name
-    args.dataset = 'cifar10' if 'cifar' in args.arch else 'imagenet'
-    args.num_classes = 10 if args.dataset == 'cifar10' else 1000
+    # Infer the dataset from the model name  #WJH 2/23 edited
+    #args.dataset = 'cifar10' if 'cifar' in args.arch else 'imagenet'
+    if 'cifar100' in args.arch:
+        args.dataset = 'cifar100'
+    elif 'cifar' in args.arch:
+        args.dataset = 'cifar10'
+    else:
+        args.dataset = 'imagenet'
+    #args.num_classes = 10 if args.dataset == 'cifar10' else 1000
+    if args.dataset == 'cifar10':
+        args.num_classes = 10
+    elif args.dataset == 'cifar100':
+        args.num_classes = 100
+    else:
+        args.num_classes = 1000
 
     if args.earlyexit_thresholds:
         args.num_exits = len(args.earlyexit_thresholds) + 1

@@ -194,6 +194,12 @@ class PACTQuantizer(Quantizer):
                                             bits_weights=bits_weights, bits_overrides=bits_overrides,
                                             train_with_fp_copy=True, quantize_bias=quantize_bias)
 
+        def wrpn_quantize_param(param_fp, param_meta):
+            scale, zero_point = symmetric_linear_quantization_params(param_meta.num_bits, 1)
+            out = param_fp.clamp(-1, 1)
+            out = LinearQuantizeSTE.apply(out, scale, zero_point, True, False)
+            return out
+
         def relu_replace_fn(module, name, qbits_map):
             bits_acts = qbits_map[name].acts
             if bits_acts is None:
@@ -201,7 +207,7 @@ class PACTQuantizer(Quantizer):
             return LearnedClippedLinearQuantization(bits_acts, act_clip_init_val, dequantize=True,
                                                     inplace=module.inplace)
 
-        self.param_quantization_fn = dorefa_quantize_param
+        self.param_quantization_fn = dorefa_quantize_param  #default is dorefa_quantize_param
 
         self.replacement_factory[nn.ReLU] = relu_replace_fn
 

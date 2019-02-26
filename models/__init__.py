@@ -76,6 +76,11 @@ def create_model(pretrained, dataset, arch, parallel=True, device_ids=None):
         assert arch in cifar10_models.__dict__, "Model %s is not supported for dataset CIFAR10" % arch
         assert not pretrained, "Model %s (CIFAR10) does not have a pretrained model" % arch
         model = cifar10_models.__dict__[arch]()
+    elif dataset == 'cifar100':  #Add at 2/22
+        msglogger.info("=> creating %s model for CIFAR100" % arch)
+        assert arch in cifar10_models.__dict__, "Model %s is not supported for dataset CIFAR100" % arch
+        assert not pretrained, "Model %s (CIFAR100) does not have a pretrained model" % arch
+        model = cifar10_models.__dict__[arch]()
     else:
         print("FATAL ERROR: create_model does not support models for dataset %s" % dataset)
         exit()
