@@ -48,7 +48,7 @@ def load_data(dataset, data_dir, batch_size, workers, validation_split=0.1, dete
     if dataset not in DATASETS_NAMES:
         raise ValueError('load_data does not support dataset %s" % dataset')
     #datasets_fn = cifar10_get_datasets if dataset == 'cifar10' else imagenet_get_datasets
-	if dataset == 'cifar10':
+    if dataset == 'cifar10':
         datasets_fn = cifar10_get_datasets
     elif dataset == 'cifar100':
         datasets_fn = cifar100_get_datasets

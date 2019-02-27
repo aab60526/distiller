@@ -185,9 +185,15 @@ def main():
     # Define loss function (criterion) and optimizer
     criterion = nn.CrossEntropyLoss().to(args.device)
 
-    optimizer = torch.optim.SGD(model.parameters(), lr=args.lr,
-                                momentum=args.momentum,
+    #optimizer = torch.optim.SGD(model.parameters(), lr=args.lr,
+                                #momentum=args.momentum,
+                                #weight_decay=args.weight_decay)
+								
+    optimizer = torch.optim.Adam(model.parameters(), lr=0.001,
+	                            betas=(0.9, 0.999),
+								eps=1e-08, 
                                 weight_decay=args.weight_decay)
+
     msglogger.info('Optimizer Type: %s', type(optimizer))
     msglogger.info('Optimizer Args: %s', optimizer.defaults)
 

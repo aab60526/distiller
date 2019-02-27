@@ -207,7 +207,7 @@ class PACTQuantizer(Quantizer):
             return LearnedClippedLinearQuantization(bits_acts, act_clip_init_val, dequantize=True,
                                                     inplace=module.inplace)
 
-        self.param_quantization_fn = dorefa_quantize_param  #default is dorefa_quantize_param
+        self.param_quantization_fn = wrpn_quantize_param  #default is dorefa_quantize_param
 
         self.replacement_factory[nn.ReLU] = relu_replace_fn
 
