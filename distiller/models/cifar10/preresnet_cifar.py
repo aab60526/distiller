@@ -184,8 +184,10 @@ class Demolition_Conv2d(nn.Module):
     def __init__(self,in_channels, out_channels, kernel_size, stride=1, padding=0, dilation=1, groups=1, bias=True):
         super(Demolition_Conv2d, self).__init__()
 
+		self.outbits = 5
+		self.outmax = 9
         self.in_channels = in_channels
-        self.scale, self.zero_point = symmetric_linear_quantization_params(5, 9)# bit:5 9MAC:9
+        self.scale, self.zero_point = symmetric_linear_quantization_params(self.outbits, self.outmax)# bit:5 9MAC:9
         self.conv = nn.ModuleList([nn.Conv2d(1, out_channels, kernel_size, stride=stride, 
                     padding=padding, dilation=dilation, groups=groups, bias=bias) for i in range(0, in_channels)])
     def forward(self, x):
@@ -194,6 +196,21 @@ class Demolition_Conv2d(nn.Module):
             out += LinearQuantizeSTE.apply(self.conv[i](x[:,i:i+1,:,:]), self.scale, self.zero_point, True, False)
         return out
 
+class StepWeight_Conv2d(nn.Conv2d): #3/2 #Not check
+    def __init__(self,in_channels, out_channels, kernel_size, stride=1, padding=0, dilation=1, groups=1, bias=True):
+        super(StepWeight_Conv2d, self).__init__(in_channels, out_channels, kernel_size, stride, padding, dilation, groups, bias)
+		self.weightbits = 4
+		self.unit = 1 / (2 ** self.weightbits - 1)
+    def forward(self, x):
+        how_many_units = self.weight // self.unit #Be careful 小數問題
+		
+		output = []
+        for i in range(self.weightbits):
+            one_or_zero = (how_many_units // 2**i) % 2
+            output[i] = F.conv2d(x, self.unit*one_or_zero, self.bias, self.stride, self.padding, self.dilation, self.groups)
+        #output0 = F.conv2d(x, self.weight, self.bias, self.stride, self.padding, self.dilation, self.groups)
+		
+        return output
 def conv3x3(in_planes, out_planes, stride=1):
     """3x3 convolution with padding"""
     return nn.Conv2d(in_planes, out_planes, kernel_size=3, stride=stride,
