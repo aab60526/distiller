@@ -31,6 +31,7 @@ This ResNet also has layer gates, to be able to dynamically remove layers.
 """
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import math
 
 __all__ = ['preact_resnet20_cifar', 'preact_resnet32_cifar', 'preact_resnet44_cifar', 'preact_resnet56_cifar',
@@ -184,8 +185,8 @@ class Demolition_Conv2d(nn.Module):
     def __init__(self,in_channels, out_channels, kernel_size, stride=1, padding=0, dilation=1, groups=1, bias=True):
         super(Demolition_Conv2d, self).__init__()
 
-		self.outbits = 5
-		self.outmax = 9
+        self.outbits = 4
+        self.outmax = 9
         self.in_channels = in_channels
         self.scale, self.zero_point = symmetric_linear_quantization_params(self.outbits, self.outmax)# bit:5 9MAC:9
         self.conv = nn.ModuleList([nn.Conv2d(1, out_channels, kernel_size, stride=stride, 
@@ -199,24 +200,77 @@ class Demolition_Conv2d(nn.Module):
 class StepWeight_Conv2d(nn.Conv2d): #3/2 #Not check
     def __init__(self,in_channels, out_channels, kernel_size, stride=1, padding=0, dilation=1, groups=1, bias=True):
         super(StepWeight_Conv2d, self).__init__(in_channels, out_channels, kernel_size, stride, padding, dilation, groups, bias)
-		self.weightbits = 4
-		self.unit = 1 / (2 ** self.weightbits - 1)
+        self.weightbits = 3
+        self.unit = 1 / (2 ** self.weightbits - 1)
+        #self.how_many_units = (self.weight / self.unit).round() #Be careful 小數問題
+        #self.how_many_units = self.weight // self.unit
+        #self.how_many_units = self.how_many_units.to('cuda')
+        #self.sign_bit = (self.how_many_units < 0).float().to('cuda')
+        #self.how_many_units[self.how_many_units < 0] = self.how_many_units[self.how_many_units < 0] + 2 ** (self.weightbits - 1)
     def forward(self, x):
-        how_many_units = self.weight // self.unit #Be careful 小數問題
-		
-		output = []
-        for i in range(self.weightbits):
-            one_or_zero = (how_many_units // 2**i) % 2
-            output[i] = F.conv2d(x, self.unit*one_or_zero, self.bias, self.stride, self.padding, self.dilation, self.groups)
-        #output0 = F.conv2d(x, self.weight, self.bias, self.stride, self.padding, self.dilation, self.groups)
-		
+        output = F.conv2d(x, self.weight, self.bias, self.stride, self.padding, self.dilation, self.groups)
+        #how_many_units = (self.weight / self.unit).round() #3/5 problem may be result in round()
+        #sign_bit = (how_many_units < 0).float()
+        #output = 0
+        #print(self.weight)
+        #for i in range(self.weightbits-1):
+            #one_or_zero = (how_many_units // 2**i) % 2
+            #output += F.conv2d(x, self.unit*one_or_zero, self.bias, self.stride, self.padding, self.dilation, self.groups) * (2 ** i)
+        #output -= F.conv2d(x, self.unit*sign_bit, self.bias, self.stride, self.padding, self.dilation, self.groups) * (2 ** (self.weightbits - 1))
         return output
+'''
+class StepInput_Conv2d(nn.Conv2d):
+    def __init__(self,in_channels, out_channels, kernel_size, stride=1, padding=0, dilation=1, groups=1, bias=True):
+        super(StepInput_Conv2d, self).__init__(in_channels, out_channels, kernel_size, stride, padding, dilation, groups, bias)
+        self.inputbits = 4
+        self.unit = 1 / (2 ** self.inputbits - 1)
+    def forward(self, x):
+        how_many_units = (x / self.unit).round()
+        one_or_zero = how_many_units % 2
+        output = F.conv2d(x, self.unit*one_or_zero, self.bias, self.stride, self.padding, self.dilation, self.groups)
+        for i in range(1,self.inputbits):
+        return output
+'''
+class Conv2d_split2binary(nn.Module):
+    def __init__(self,in_channels, out_channels, kernel_size, stride=1, padding=0, dilation=1, groups=1, bias=True):
+        super(Conv2d_split2binary, self).__init__()
+        self.conv = nn.ModuleList([nn.Conv2d(in_channels, out_channels, kernel_size, stride=stride, 
+                    padding=padding, dilation=dilation, groups=groups, bias=bias) for i in range(0, 4)])
+        #self.sign = (-8/15)
+    def forward(self, x):
+        output = (-8/15)*self.conv[0](x)
+        for i in range(1, 4):
+            output += self.conv[i](x)* ((2 ** (i-1))/15)
+        return output
+
+class Demolition_splitweight_Conv2d(nn.Module):
+    def __init__(self,in_channels, out_channels, kernel_size, stride=1, padding=0, dilation=1, groups=1, bias=True):
+        super(Demolition_splitweight_Conv2d, self).__init__()
+
+        self.outbits = 5
+        self.outmax = 9
+        self.in_channels = in_channels
+        self.scale, self.zero_point = symmetric_linear_quantization_params(self.outbits, self.outmax)# bit:5 9MAC:9
+        self.conv = nn.ModuleList([Conv2d_split2binary(1, out_channels, kernel_size, stride=stride, 
+                    padding=padding, dilation=dilation, groups=groups, bias=bias) for i in range(0, in_channels)])
+    def forward(self, x):
+        out = LinearQuantizeSTE.apply(self.conv[0](x[:,0:1:,:,:]), self.scale, self.zero_point, True, False)
+        for i in range(1, self.in_channels):
+            out += LinearQuantizeSTE.apply(self.conv[i](x[:,i:i+1,:,:]), self.scale, self.zero_point, True, False)
+        return out
+
 def conv3x3(in_planes, out_planes, stride=1):
     """3x3 convolution with padding"""
-    return nn.Conv2d(in_planes, out_planes, kernel_size=3, stride=stride,
-                     padding=1, bias=False)
+    #return nn.Conv2d(in_planes, out_planes, kernel_size=3, stride=stride,
+                     #padding=1, bias=False)
     #return Demolition_Conv2d(in_planes, out_planes, kernel_size=3, stride=stride,
                      #padding=1, bias=False)
+    #return StepWeight_Conv2d(in_planes, out_planes, kernel_size=3, stride=stride,
+                     #padding=1, bias=False)
+    #return Conv2d_split2binary(in_planes, out_planes, kernel_size=3, stride=stride,
+                     #padding=1, bias=False)
+    return Demolition_splitweight_Conv2d(in_planes, out_planes, kernel_size=3, stride=stride,
+                     padding=1, bias=False)
 
 
 class PreactBasicBlock(nn.Module):

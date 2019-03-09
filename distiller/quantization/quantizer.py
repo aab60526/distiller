@@ -21,6 +21,7 @@ import logging
 import torch
 import torch.nn as nn
 import distiller
+from ..models.cifar10.preresnet_cifar import StepWeight_Conv2d
 
 msglogger = logging.getLogger()
 
@@ -153,7 +154,7 @@ class Quantizer(object):
         self.params_to_quantize = []
 
     def _add_qbits_entry(self, module_name, module_type, qbits):
-        if module_type not in [nn.Conv2d, nn.Linear, nn.Embedding]:
+        if module_type not in [nn.Conv2d, nn.Linear, nn.Embedding, StepWeight_Conv2d]:
             # For now we support weights quantization only for Conv, FC and Embedding layers (so, for example, we don't
             # support quantization of batch norm scale parameters)
             qbits = QBits(acts=qbits.acts, wts=None)

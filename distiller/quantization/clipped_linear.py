@@ -115,7 +115,7 @@ def dorefa_quantize_param_int(param_fp, param_meta):
         scale, zero_point = symmetric_linear_quantization_params(param_meta.num_bits, 1)
         out = param_fp.tanh()
         out = out / out.abs().max()
-        out = LinearQuantizeSTE.apply(out, scale, zero_point, True, False)
+        out = LinearQuantizeSTE.apply(out, scale, zero_point, True, False)  #dequantize default True
         #out = 2 * out - 1
     return out
 
@@ -221,7 +221,7 @@ class PACTQuantizer(Quantizer):
             return LearnedClippedLinearQuantization(bits_acts, act_clip_init_val, dequantize=True,
                                                     inplace=module.inplace)
 
-        self.param_quantization_fn = dorefa_quantize_param  #default is dorefa_quantize_param
+        self.param_quantization_fn = dorefa_quantize_param_int  #default is dorefa_quantize_param
 
         self.replacement_factory[nn.ReLU] = relu_replace_fn
 

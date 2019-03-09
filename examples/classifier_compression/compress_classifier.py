@@ -67,7 +67,14 @@ import torch.backends.cudnn as cudnn
 import torch.optim
 import torch.utils.data
 import torchnet.meter as tnt
-import distiller
+script_dir = os.path.dirname(__file__)
+module_path = os.path.abspath(os.path.join(script_dir, '..', '..'))
+try:
+    import distiller
+except ImportError:
+    sys.path.append(module_path)
+    import distiller
+#import distiller
 import distiller.apputils as apputils
 from distiller.data_loggers import *
 import distiller.quantization as quantization
@@ -181,14 +188,14 @@ def main():
     # Define loss function (criterion) and optimizer
     criterion = nn.CrossEntropyLoss().to(args.device)
 
-    #optimizer = torch.optim.SGD(model.parameters(), lr=args.lr,
-                                #momentum=args.momentum,
-                                #weight_decay=args.weight_decay)
-								
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.001,
-	                            betas=(0.9, 0.999),
-								eps=1e-08, 
+    optimizer = torch.optim.SGD(model.parameters(), lr=args.lr,
+                                momentum=args.momentum,
                                 weight_decay=args.weight_decay)
+								
+    #optimizer = torch.optim.Adam(model.parameters(), lr=0.001,
+	                            #betas=(0.9, 0.999),
+								#eps=1e-08, 
+                                #weight_decay=args.weight_decay)
 
     msglogger.info('Optimizer Type: %s', type(optimizer))
     msglogger.info('Optimizer Args: %s', optimizer.defaults)
