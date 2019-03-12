@@ -53,7 +53,7 @@ class LearnedClippedLinearQuantizeSTE(torch.autograd.Function):
 
         # Straight-through estimator for the scale factor calculation
         return grad_input, grad_alpha, None, None, None
-
+	
 
 class ClippedLinearQuantization(nn.Module):
     def __init__(self, num_bits, clip_val, dequantize=True, inplace=False):
@@ -86,6 +86,7 @@ class LearnedClippedLinearQuantization(nn.Module):
     def forward(self, input):
         input = LearnedClippedLinearQuantizeSTE.apply(input, self.clip_val, self.num_bits,
                                                       self.dequantize, self.inplace)
+        #input = input / self.clip_val		# This is for activation remaps to 0~1						  
         return input
 
     def __repr__(self):
@@ -98,7 +99,11 @@ class LearnedClippedLinearQuantization(nn.Module):
 
 def dorefa_quantize_param(param_fp, param_meta):
     if param_meta.num_bits == 1:
-        out = DorefaParamsBinarizationSTE.apply(param_fp)
+        #out = DorefaParamsBinarizationSTE.apply(param_fp)
+        scale, zero_point = asymmetric_linear_quantization_params(param_meta.num_bits, 0, 1, signed=False)
+        out = param_fp.tanh()
+        out = out / (2 * out.abs().max()) + 0.5
+        out = LinearQuantizeSTE.apply(out, scale, zero_point, True, False)
     else:
         scale, zero_point = asymmetric_linear_quantization_params(param_meta.num_bits, 0, 1, signed=False)
         out = param_fp.tanh()
@@ -109,7 +114,7 @@ def dorefa_quantize_param(param_fp, param_meta):
 	
 def dorefa_quantize_param_int(param_fp, param_meta):
     if param_meta.num_bits == 1:
-        out = DorefaParamsBinarizationSTE.apply(param_fp)
+        out = DorefaParamsBinarizationSTE.apply(param_fp)  #This is XNOR method
     else:
         #scale, zero_point = asymmetric_linear_quantization_params(param_meta.num_bits, 0, 1, signed=False)
         scale, zero_point = symmetric_linear_quantization_params(param_meta.num_bits, 1)
@@ -124,13 +129,15 @@ class DorefaParamsBinarizationSTE(torch.autograd.Function):
     def forward(ctx, input, inplace=False):
         if inplace:
             ctx.mark_dirty(input)
-        E = input.abs().mean()
-        output = input.sign() * E
+        #E = input.abs().mean()
+        #output = input.sign() * E
+        output = (input.sign() + 1) / 2
         return output
     
     @staticmethod
     def backward(ctx, grad_output):
         return grad_output, None
+
 
 class WRPNQuantizer(Quantizer):
     """
@@ -185,7 +192,7 @@ class DorefaQuantizer(Quantizer):
                 return module
             return ClippedLinearQuantization(bits_acts, 1, dequantize=True, inplace=module.inplace)
 
-        self.param_quantization_fn = dorefa_quantize_param
+        self.param_quantization_fn = dorefa_quantize_param_int
 
         self.replacement_factory[nn.ReLU] = relu_replace_fn
 
